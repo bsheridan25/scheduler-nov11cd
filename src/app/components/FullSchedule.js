@@ -1,4 +1,5 @@
-"use client"
+const FullSchedule = () => {
+  console.log("FullSchedule is rendering");"use client"
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, X, Users } from 'lucide-react';
 import { getProviders, saveProvider, saveSchedule, getScheduleByDate } from '../../lib/db';
