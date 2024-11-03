@@ -3,9 +3,17 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, X, Users } from 'lucide-react';
 
+const getCurrentWeekNumber = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const diff = now - start;
+  const oneWeek = 1000 * 60 * 60 * 24 * 7;
+  return Math.floor(diff / oneWeek) + 1;
+};
+
 const FullSchedule = () => {
-  // Your state declarations
-  const [currentWeek, setCurrentWeek] = useState(() => getCurrentWeekNumber());
+  // Move the function definition before using it in useState
+  const [currentWeek, setCurrentWeek] = useState(getCurrentWeekNumber());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [showProviderManagement, setShowProviderManagement] = useState(false);
   const [providers, setProviders] = useState([
@@ -27,15 +35,6 @@ const FullSchedule = () => {
 
   const locations = ['Albany', 'Coxsackie', 'CliftonPark'];
 
-  // Helper functions
-  const getCurrentWeekNumber = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
-    const diff = now - start;
-    const oneWeek = 1000 * 60 * 60 * 24 * 7;
-    return Math.floor(diff / oneWeek) + 1;
-  };
-
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { 
       month: 'long', 
@@ -44,11 +43,10 @@ const FullSchedule = () => {
     });
   };
 
-  // Rest of your component code...
-
   return (
     <div className="p-4">
-      {/* Your JSX here */}
+      <h1>Schedule</h1>
+      {/* Rest of your JSX */}
     </div>
   );
 };
