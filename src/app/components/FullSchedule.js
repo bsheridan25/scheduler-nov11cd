@@ -1,13 +1,106 @@
-import React, { useState } from 'react';
-import { Calendar, Clock, Plus, X, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+"use client"
+import React, { useState, useEffect } from 'react';
+import { Calendar, Clock, Plus, X, Users } from 'lucide-react';
+import { getProviders, saveProvider, saveSchedule, getScheduleByDate } from '../../lib/db';
 
 const FullSchedule = () => {
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric',
-      year: 'numeric'
-    });
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    const diff = now - start;
+    const oneWeek = 1000 * 60 * 60 * 24 * 7;
+    return Math.floor(diff / oneWeek) + 1;
+  });
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [showProviderManagement, setShowProviderManagement] = useState(false);
+  const [providers, setProviders] = useState([]);
+  const [schedule, setSchedule] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  const locations = ['Albany', 'Coxsackie', 'CliftonPark'];
+
+  useEffect(() => {
+    loadProviders();
+    loadSchedule();
+  }, [currentWeek, currentYear]);
+
+  async function loadProviders() {
+    try {
+      const dbProviders = await getProviders();
+      setProviders(dbProviders);
+    } catch (error) {
+      console.error('Error loading providers:', error);
+    }
+  }
+
+  async function loadSchedule() {
+    try {
+      const weekDates = getWeekDates(currentWeek, currentYear);
+      const startDate = weekDates[0];
+      const endDate = weekDates[weekDates.length - 1];
+      const dbSchedule = await getScheduleByDate(startDate, endDate);
+      
+      // Transform schedule data into the format your component expects
+      const formattedSchedule = {};
+      weekDates.forEach(date => {
+        const dateStr = formatDate(date);
+        formattedSchedule[dateStr] = {
+          Albany: [],
+          Coxsackie: [],
+          CliftonPark: [],
+          Hospital: [],
+          OnCall: ''
+        };
+      });
+
+      dbSchedule.forEach(entry => {
+        const dateStr = formatDate(new Date(entry.date));
+        if (formattedSchedule[dateStr]) {
+          formattedSchedule[dateStr][entry.location].push({
+            provider: entry.provider_name,
+            startTime: entry.start_time,
+            endTime: entry.end_time,
+            nurse: entry.nurse
+          });
+        }
+      });
+
+      setSchedule(formattedSchedule);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading schedule:', error);
+      setLoading(false);
+    }
+  }
+
+  const handleProviderChange = async (date, location, index, field, value) => {
+    try {
+      setSchedule(prev => {
+        const newSchedule = { ...prev };
+        const dateStr = formatDate(date);
+        if (!newSchedule[dateStr][location][index]) {
+          newSchedule[dateStr][location][index] = {};
+        }
+        newSchedule[dateStr][location][index][field] = value;
+        return newSchedule;
+      });
+
+      // Save to database
+      const dateStr = formatDate(date);
+      const provider = providers.find(p => p.name === value);
+      if (provider && field === 'provider') {
+        await saveSchedule({
+          date: dateStr,
+          provider_id: provider.id,
+          location,
+          start_time: schedule[dateStr][location][index].startTime || '09:00',
+          end_time: schedule[dateStr][location][index].endTime || '17:00',
+          nurse: schedule[dateStr][location][index].nurse || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+    }
   };
 
   const getWeekDates = (week, year) => {
@@ -26,89 +119,11 @@ const FullSchedule = () => {
     return dates;
   };
 
-  const getCurrentWeekNumber = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
-    const diff = now - start;
-    const oneWeek = 1000 * 60 * 60 * 24 * 7;
-    const week = Math.floor(diff / oneWeek) + 1;
-    return week;
-  };
-
-  const [currentWeek, setCurrentWeek] = useState(getCurrentWeekNumber());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [showProviderManagement, setShowProviderManagement] = useState(false);
-  const [providers, setProviders] = useState([
-    'Dr. Luthra',
-    'Dr. Centurioni',
-    'Dr. Bevilacqua',
-    'Dr. Fecko',
-    'Dr. Leary',
-    'Dr. Maroney',
-    'Dr. Tenenbaum',
-    'Dr. Benison',
-    'Dr. Cuff',
-    'Dr. Pinapati',
-    'Dr. Abbuhl',
-    'Dr. Sheridan',
-    'NP Rizzolo',
-    'NP Collins'
-  ]);
-
-  const locations = ['Albany', 'Coxsackie', 'CliftonPark'];
-
-  const [schedule, setSchedule] = useState(() => {
-    const dates = {};
-    const weekDates = getWeekDates(getCurrentWeekNumber(), new Date().getFullYear());
-    weekDates.forEach(date => {
-      const dateStr = formatDate(date);
-      dates[dateStr] = {
-        Albany: [],
-        Coxsackie: [],
-        CliftonPark: [],
-        Hospital: [],
-        OnCall: ''
-      };
-    });
-    return dates;
-  });
-
-  const handleWeekChange = (week, year = currentYear) => {
-    if (week < 1) {
-      setCurrentWeek(52);
-      setCurrentYear(year - 1);
-    } else if (week > 52) {
-      setCurrentWeek(1);
-      setCurrentYear(year + 1);
-    } else {
-      setCurrentWeek(week);
-      setCurrentYear(year);
-    }
-
-    const newDates = {};
-    const weekDates = getWeekDates(week, year);
-    weekDates.forEach(date => {
-      const dateStr = formatDate(date);
-      newDates[dateStr] = schedule[dateStr] || {
-        Albany: [],
-        Coxsackie: [],
-        CliftonPark: [],
-        Hospital: [],
-        OnCall: ''
-      };
-    });
-    setSchedule(newDates);
-  };
-
-  const handleProviderChange = (date, location, index, field, value) => {
-    setSchedule(prev => {
-      const newSchedule = { ...prev };
-      const dateStr = formatDate(date);
-      if (!newSchedule[dateStr][location][index]) {
-        newSchedule[dateStr][location][index] = {};
-      }
-      newSchedule[dateStr][location][index][field] = value;
-      return newSchedule;
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric',
+      year: 'numeric'
     });
   };
 
@@ -119,7 +134,7 @@ const FullSchedule = () => {
       newSchedule[dateStr][location].push({
         provider: '',
         startTime: '',
-        endTime: '',
+        endTime: '4:30 PM',
         nurse: ''
       });
       return newSchedule;
@@ -135,32 +150,36 @@ const FullSchedule = () => {
     });
   };
 
+  if (loading) {
+    return <div>Loading schedule...</div>;
+  }
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => handleWeekChange(currentWeek - 1)}
+              onClick={() => setCurrentWeek(prev => Math.max(1, prev - 1))}
               className="p-2 rounded hover:bg-gray-100"
             >
-              <ChevronLeft className="w-4 h-4" />
+              Previous
             </button>
             <div className="flex flex-col items-center">
               <span className="font-bold">Week {currentWeek}</span>
               <span className="text-sm text-gray-500">{currentYear}</span>
             </div>
             <button 
-              onClick={() => handleWeekChange(currentWeek + 1)}
+              onClick={() => setCurrentWeek(prev => Math.min(52, prev + 1))}
               className="p-2 rounded hover:bg-gray-100"
             >
-              <ChevronRight className="w-4 h-4" />
+              Next
             </button>
           </div>
           <select 
             className="border rounded p-2"
             value={currentWeek}
-            onChange={(e) => handleWeekChange(parseInt(e.target.value))}
+            onChange={(e) => setCurrentWeek(parseInt(e.target.value))}
           >
             {Array.from({ length: 53 }, (_, i) => i + 1).map(week => (
               <option key={week} value={week}>Week {week}</option>
@@ -170,18 +189,11 @@ const FullSchedule = () => {
             type="number"
             className="border rounded p-2 w-24"
             value={currentYear}
-            onChange={(e) => handleWeekChange(currentWeek, parseInt(e.target.value))}
+            onChange={(e) => setCurrentYear(parseInt(e.target.value))}
             min="2000"
             max="2100"
           />
         </div>
-        <button 
-          onClick={() => setShowProviderManagement(true)}
-          className="px-4 py-2 bg-yellow-100 text-yellow-600 rounded flex items-center gap-2"
-        >
-          <Users className="w-4 h-4" />
-          Manage Providers
-        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -221,7 +233,7 @@ const FullSchedule = () => {
                         >
                           <option value="">Select Provider</option>
                           {providers.map(p => (
-                            <option key={p} value={p}>{p}</option>
+                            <option key={p.id} value={p.name}>{p.name}</option>
                           ))}
                         </select>
                         <div className="flex gap-2 items-center">
@@ -270,7 +282,7 @@ const FullSchedule = () => {
                   >
                     <option value="">Select Provider</option>
                     {providers.map(p => (
-                      <option key={p} value={p}>{p}</option>
+                      <option key={p.id} value={p.name}>{p.name}</option>
                     ))}
                   </select>
                 </td>
@@ -286,7 +298,7 @@ const FullSchedule = () => {
                   >
                     <option value="">Select Provider</option>
                     {providers.map(p => (
-                      <option key={p} value={p}>{p}</option>
+                      <option key={p.id} value={p.name}>{p.name}</option>
                     ))}
                   </select>
                 </td>
