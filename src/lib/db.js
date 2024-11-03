@@ -1,13 +1,16 @@
 import { sql } from '@vercel/postgres';
 
-// Create tables if they don't exist
 export async function initDB() {
+  // Create providers table
   await sql`
     CREATE TABLE IF NOT EXISTS providers (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL
     );
+  `;
 
+  // Create schedules table
+  await sql`
     CREATE TABLE IF NOT EXISTS schedules (
       id SERIAL PRIMARY KEY,
       date DATE NOT NULL,
