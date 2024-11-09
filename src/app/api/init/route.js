@@ -9,4 +9,4 @@ export async function GET() {
     console.error('Error initializing database:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+} 
